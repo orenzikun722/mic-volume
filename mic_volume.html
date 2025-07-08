@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>マイク音量表示</title>
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+      background: #fff;
+    }
+    canvas {
+      margin: 0;
+      width: 100%;
+      height: 100vh;
+      display: block;
+    }
+    progress {
+      position: absolute;
+      width: 100%; height: 30px;
+      top: 30px;
+    }
+    #volume {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 20px;
+      background: rgba(255,255,255,0.8);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <progress id="volumeBar" value="0" max="100"></progress>
+  <p id="volume">音量: 0</p>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const volumeBar = document.getElementById('volumeBar');
+    const volumeText = document.getElementById('volume');
+
+    window.addEventListener('resize', resize);
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+
+    let history = [];
+    const maxHistory = 500;
+
+    async function startMic() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      function update() {
+        analyser.getByteTimeDomainData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = (dataArray[i] - 128) / 128;
+          sum += v * v;
+        }
+        let volume = Math.sqrt(sum / dataArray.length) * 100;
+
+        history.push(volume);
+        if (history.length > maxHistory) history.shift();
+
+        volumeBar.value = volume;
+        volumeText.textContent = `音量: ${volume.toFixed(2)}`;
+
+        drawGraph();
+        requestAnimationFrame(update);
+      }
+
+      update();
+    }
+
+    function drawGraph() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const barWidth = canvas.width / maxHistory;
+      ctx.fillStyle = 'red';
+
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height);
+      for (let i = 0; i < history.length; i++) {
+        const x = i * barWidth;
+        const y = canvas.height - (history[i] / 100) * canvas.height;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(history.length * barWidth, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+
+      // 線を描画
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 1;
+      const lineCount = 5;
+      for (let i = 1; i <= lineCount; i++) {
+        const y = (canvas.height / (lineCount + 1)) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    startMic().catch(err => {
+      alert("マイクへのアクセスに失敗しました: " + err.message);
+    });
+  </script>
+</body>
+</html>

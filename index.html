@@ -55,10 +55,16 @@
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(stream);
+
+      const biquad = audioContext.createBiquadFilter();
+      biquad.type = "lowpass";
+      biquad.frequency.value = 3000;
+
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 512;
 
-      source.connect(analyser);
+      source.connect(biquad);
+      biquad.connect(analyser);
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
@@ -89,20 +95,20 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const barWidth = canvas.width / maxHistory;
-      ctx.fillStyle = 'red';
-
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, canvas.height);
       for (let i = 0; i < history.length; i++) {
         const x = i * barWidth;
         const y = canvas.height - (history[i] / 100) * canvas.height;
-        ctx.lineTo(x, y);
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
       }
-      ctx.lineTo(history.length * barWidth, canvas.height);
-      ctx.closePath();
-      ctx.fill();
+      ctx.stroke();
 
-      // 線を描画
       ctx.strokeStyle = 'black';
       ctx.lineWidth = 1;
       const lineCount = 5;
